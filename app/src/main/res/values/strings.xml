@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">영화 검색</string>
+    <string name="text_hint">검색할 영화제목을 입력하세요</string>
+</resources>
