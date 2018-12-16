@@ -36,6 +36,12 @@ public class MainActivity extends AppCompatActivity {
     EditText editText;
     ProgressDialog dialog;
     private EndlessRecyclerViewScrollListener scrollListener;
+
+    int start = 1;
+    int display = 30;
+    int totalItems = 0;
+    String query;
+    boolean isNewSearch = true;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -43,30 +49,32 @@ public class MainActivity extends AppCompatActivity {
 
         editText = (EditText) findViewById(R.id.movieTitle);
         recyclerView = (RecyclerView) findViewById(R.id.recyclerView);
+        Button button = (Button) findViewById(R.id.searchButton);
 
         LinearLayoutManager layoutManager = new LinearLayoutManager(this,LinearLayoutManager.VERTICAL,false);
 
         recyclerView.setLayoutManager(layoutManager);
 
-
-
         adaptor = new MovieAdaptor(getApplicationContext());
+
         recyclerView.setAdapter(adaptor);
 
         dialog = new ProgressDialog(this);
         dialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
         dialog.setMessage("검색 중...");
 
-        Button button = (Button) findViewById(R.id.searchButton);
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String query;
+
                 String urlStr;
                 try{
-                    adaptor.removeAll();
+
+                    initSearch();
+
                     query = URLEncoder.encode(editText.getText().toString(),"UTF8");
-                    urlStr = "https://openapi.naver.com/v1/search/movie.json?query=" + query;
+                    urlStr = "https://openapi.naver.com/v1/search/movie.json?query="+ query + "&start=1&display=30";
+
                     sendRequest(urlStr);
                 }catch(Exception e) {
                     e.printStackTrace();
@@ -85,12 +93,24 @@ public class MainActivity extends AppCompatActivity {
             }
 
         });
+
+
         scrollListener = new EndlessRecyclerViewScrollListener(layoutManager) {
             @Override
             public void onLoadMore(int page, int totalItemsCount, RecyclerView view) {
+                Log.d("onLoadMore","onLoadMoreonLoadMoreonLoadMoreonLoadMoreonLoadMoreonLoadMore");
+
+                if(totalItemsCount < totalItems && start <= 1000){
+                    start = start + display;
+                    String urlStr = "https://openapi.naver.com/v1/search/movie.json?query="+ query +"&display=30&start="+String.valueOf(start);
+                    isNewSearch = false;
+                    sendRequest(urlStr);
+
+                }
 
             }
         };
+        recyclerView.addOnScrollListener(scrollListener);
 
         if(AppHelper.requestQueue == null) {
             AppHelper.requestQueue = Volley.newRequestQueue(getApplicationContext());
@@ -102,8 +122,17 @@ public class MainActivity extends AppCompatActivity {
     public void processRequest(String res){
         Gson gson = new Gson();
         MovieList movieList = gson.fromJson(res, MovieList.class);
+        totalItems = movieList.total;
 
-        if (movieList != null){
+        Log.d("Total ---------->",String.valueOf(movieList.total));
+        Log.d("Start---------->",String.valueOf(movieList.start));
+        Log.d("display ---------->",String.valueOf(movieList.display));
+
+        if(isNewSearch == true && movieList.items.size() == 0){
+            Toast.makeText(getApplicationContext(),"검색 결과가 없습니다.",Toast.LENGTH_SHORT).show();
+        }
+
+        if (movieList.items.size() != 0){
             Iterator<MovieItem> iterator = movieList.items.iterator();
             while(iterator.hasNext()){
                 adaptor.addItem(iterator.next());
@@ -113,13 +142,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendRequest(String url){
-        dialog.show();
         StringRequest request = new StringRequest(
                 Request.Method.GET, url,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
-                        Log.d("응답 ->",response);
+                        Log.d("요청 응답->",response);
                         processRequest(response);
                         dialog.dismiss();
                     }
@@ -142,6 +170,17 @@ public class MainActivity extends AppCompatActivity {
         };
         request.setShouldCache(false);
         AppHelper.requestQueue.add(request);
+    }
+
+
+    public void initSearch(){
+        totalItems = 0;
+        query = "";
+        isNewSearch = true;
+        adaptor.removeAll();
+        adaptor.notifyDataSetChanged();
+        scrollListener.resetState();
+        dialog.show();
     }
 
 
